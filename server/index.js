@@ -808,3 +808,5 @@ function useMockDb() {
   User = mockDb.User;
   SmartContractCall = mockDb.SmartContractCall;
 }
+
+module.exports = app;
