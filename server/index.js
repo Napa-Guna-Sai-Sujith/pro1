@@ -763,6 +763,15 @@ app.post("/api/seed", async (req, res) => {
   }
 });
 
+// Welcome / Status
+app.get("/", (req, res) => {
+  res.json({
+    message: "⛓ Welcome to the ChainMed Pharmaceutical Supply Chain API Service",
+    status: "online",
+    documentation: "/api/health"
+  });
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString(), mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected" });
@@ -808,5 +817,3 @@ function useMockDb() {
   User = mockDb.User;
   SmartContractCall = mockDb.SmartContractCall;
 }
-
-module.exports = app;
