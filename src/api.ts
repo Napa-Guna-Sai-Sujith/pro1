@@ -1,6 +1,6 @@
 // ChainMed API Service — connects frontend to Node.js/MongoDB backend
 
-const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || "http://localhost:5000/api";
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || "https://pro1-467q.onrender.com/api";
 
 interface ApiOptions {
   method?: string;
