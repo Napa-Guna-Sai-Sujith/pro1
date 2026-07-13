@@ -71,6 +71,9 @@ export const authApi = {
 
   rejectUser: (userId: string, token: string) =>
     apiCall<{ success: boolean }>("/auth/reject-user", { method: "POST", body: { userId }, token }),
+
+  suspendUser: (userId: string, suspended: boolean, token: string) =>
+    apiCall<{ success: boolean; user: any }>("/auth/suspend-user", { method: "POST", body: { userId, suspended }, token }),
 };
 
 // ── Drug API ───────────────────────────────────────

@@ -11,6 +11,7 @@ export interface User {
   verified: boolean;
   licenseNumber?: string;
   licenseDocument?: string;
+  suspended?: boolean;
 }
 
 export interface DrugRecord {

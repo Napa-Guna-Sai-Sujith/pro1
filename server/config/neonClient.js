@@ -45,6 +45,7 @@ async function initDb() {
     // Ensure dynamically added columns exist
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS license_number VARCHAR(255);`);
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS license_document TEXT;`);
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN DEFAULT FALSE;`);
 
 
     await query(`

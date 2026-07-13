@@ -156,6 +156,19 @@ app.post("/api/auth/reject-user", authMiddleware, roleMiddleware("admin"), async
   }
 });
 
+app.post("/api/auth/suspend-user", authMiddleware, roleMiddleware("admin"), async (req, res) => {
+  try {
+    const { userId, suspended } = req.body;
+    const userToSuspend = await User.findOne({ id: userId });
+    if (!userToSuspend) return res.status(404).json({ error: "User not found" });
+    userToSuspend.suspended = !!suspended;
+    await userToSuspend.save();
+    res.json({ success: true, user: userToSuspend });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password, walletAddress } = req.body;
@@ -188,6 +201,13 @@ app.post("/api/auth/login", async (req, res) => {
       }
     } else {
       return res.status(400).json({ error: "Email or wallet address required" });
+    }
+
+    // Block suspended users
+    if (user.suspended) {
+      return res.status(403).json({ 
+        error: "Your account has been suspended by the administrator. Access is blocked." 
+      });
     }
 
     // Verify Account Verification & Expiration check

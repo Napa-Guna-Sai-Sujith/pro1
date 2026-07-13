@@ -1944,6 +1944,21 @@ function AdminDashboard() {
     }
   };
 
+  const handleToggleSuspendUser = async (userId: string, currentSuspended: boolean) => {
+    if (!token) return;
+    const actionText = currentSuspended ? "unsuspend" : "suspend";
+    if (!confirm(`Are you sure you want to ${actionText} this account?`)) return;
+    try {
+      const res = await authApi.suspendUser(userId, !currentSuspended, token);
+      if (res.success) {
+        showAlert(`✅ Account successfully ${currentSuspended ? "activated" : "suspended"}!`, "success");
+        refreshUsers();
+      }
+    } catch (err: any) {
+      showAlert(`❌ Action failed: ${err.message}`, "error");
+    }
+  };
+
   const refresh = useCallback(() => {
     setDrugs(jsonStore.getAllDrugs());
     setCalls(jsonStore.getContractCalls(30));
@@ -2121,6 +2136,7 @@ function AdminDashboard() {
                 <th className="py-2 px-3">License Number</th>
                 <th className="py-2 px-3">Wallet</th>
                 <th className="py-2 px-3">Status</th>
+                <th className="py-2 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
@@ -2132,10 +2148,27 @@ function AdminDashboard() {
                   <td className="py-2.5 px-3 font-mono text-slate-400">{u.licenseNumber || "—"}</td>
                   <td className="py-2.5 px-3 font-mono text-[10px] text-slate-500">{fmtShortHash(u.walletAddress || "")}</td>
                   <td className="py-2.5 px-3">
-                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-                      <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      Verified
-                    </span>
+                    {u.suspended ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-rose-450 font-bold bg-rose-500/10 rounded-full px-2 py-0.5 border border-rose-500/20">
+                        <span className="flex h-1.5 w-1.5 rounded-full bg-rose-500" />
+                        Suspended
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                        <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        Verified
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-right">
+                    {u.role !== "admin" && (
+                      <button onClick={() => handleToggleSuspendUser(u.id, !!u.suspended)}
+                        className={`rounded px-2.5 py-1 text-[10px] font-bold text-white transition ${
+                          u.suspended ? "bg-emerald-600 hover:bg-emerald-500" : "bg-amber-600 hover:bg-amber-500"
+                        }`}>
+                        {u.suspended ? "Activate" : "Suspend"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
