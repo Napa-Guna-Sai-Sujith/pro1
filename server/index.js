@@ -144,6 +144,18 @@ app.post("/api/auth/verify-user", authMiddleware, roleMiddleware("admin"), async
   }
 });
 
+app.post("/api/auth/reject-user", authMiddleware, roleMiddleware("admin"), async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const userToReject = await User.findOne({ id: userId });
+    if (!userToReject) return res.status(404).json({ error: "User not found" });
+    await User.deleteMany({ id: userId });
+    res.json({ success: true, message: "Registration rejected and deleted." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password, walletAddress } = req.body;

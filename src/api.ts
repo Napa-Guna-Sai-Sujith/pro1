@@ -68,6 +68,9 @@ export const authApi = {
 
   updateProfile: (data: { name: string; company?: string; location?: string; licenseNumber?: string }, token: string) =>
     apiCall<{ success: boolean; user: any }>("/auth/update-profile", { method: "POST", body: data, token }),
+
+  rejectUser: (userId: string, token: string) =>
+    apiCall<{ success: boolean }>("/auth/reject-user", { method: "POST", body: { userId }, token }),
 };
 
 // ── Drug API ───────────────────────────────────────

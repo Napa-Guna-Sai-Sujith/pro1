@@ -1930,6 +1930,20 @@ function AdminDashboard() {
     }
   };
 
+  const handleRejectUser = async (userId: string) => {
+    if (!token) return;
+    if (!confirm("Are you sure you want to reject and delete this registration request?")) return;
+    try {
+      const res = await authApi.rejectUser(userId, token);
+      if (res.success) {
+        showAlert("❌ User registration rejected and deleted.", "success");
+        refreshUsers();
+      }
+    } catch (err: any) {
+      showAlert(`❌ Rejection failed: ${err.message}`, "error");
+    }
+  };
+
   const refresh = useCallback(() => {
     setDrugs(jsonStore.getAllDrugs());
     setCalls(jsonStore.getContractCalls(30));
@@ -2043,8 +2057,60 @@ function AdminDashboard() {
         </div>
       )}
 
+      {/* Pending Approvals Section */}
+      {allUsers.filter((u: any) => !u.verified && u.role !== "admin").length > 0 && (
+        <div className="rounded-2xl border border-amber-500/20 bg-slate-900/10 p-5 backdrop-blur-md">
+          <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            Pending Registration Approvals
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-[10px] uppercase text-slate-500 border-b border-slate-800">
+                <tr>
+                  <th className="py-2 px-3">Name</th>
+                  <th className="py-2 px-3">Role</th>
+                  <th className="py-2 px-3">Company</th>
+                  <th className="py-2 px-3">License Number</th>
+                  <th className="py-2 px-3">Proof Doc</th>
+                  <th className="py-2 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/80">
+                {allUsers.filter((u: any) => !u.verified && u.role !== "admin").map((u: any) => (
+                  <tr key={u.id} className="hover:bg-slate-900/20">
+                    <td className="py-2.5 px-3 text-white font-semibold">{u.name}</td>
+                    <td className="py-2.5 px-3"><span className={`rounded-full px-2 py-0.5 text-[9px] font-mono ${ROLE_COLORS[u.role]}`}>{u.role}</span></td>
+                    <td className="py-2.5 px-3 text-slate-400">{u.company || "—"}</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-400">{u.licenseNumber || "—"}</td>
+                    <td className="py-2.5 px-3">
+                      {u.licenseDocument ? (
+                        <button onClick={() => setSelectedProof(u.licenseDocument)} className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-semibold underline transition">
+                          View Proof
+                        </button>
+                      ) : "—"}
+                    </td>
+                    <td className="py-2.5 px-3 text-right space-x-2">
+                      <button onClick={() => handleApproveUser(u.id)}
+                        className="rounded bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 text-[10px] font-bold text-white transition">
+                        Approve
+                      </button>
+                      <button onClick={() => handleRejectUser(u.id)}
+                        className="rounded bg-rose-600 hover:bg-rose-500 px-2.5 py-1 text-[10px] font-bold text-white transition">
+                        Reject
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Active Network Participants Section */}
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/10 p-5 backdrop-blur-md">
-        <h3 className="text-sm font-bold text-white mb-3">Network Participants</h3>
+        <h3 className="text-sm font-bold text-white mb-3">Active Network Participants</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="text-[10px] uppercase text-slate-500 border-b border-slate-800">
@@ -2053,47 +2119,23 @@ function AdminDashboard() {
                 <th className="py-2 px-3">Role</th>
                 <th className="py-2 px-3">Company</th>
                 <th className="py-2 px-3">License Number</th>
-                <th className="py-2 px-3">Proof Doc</th>
                 <th className="py-2 px-3">Wallet</th>
                 <th className="py-2 px-3">Status</th>
-                <th className="py-2 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {allUsers.map((u: any) => (
+              {allUsers.filter((u: any) => u.verified || u.role === "admin").map((u: any) => (
                 <tr key={u.id} className="hover:bg-slate-900/20">
                   <td className="py-2.5 px-3 text-white font-semibold">{u.name}</td>
                   <td className="py-2.5 px-3"><span className={`rounded-full px-2 py-0.5 text-[9px] font-mono ${ROLE_COLORS[u.role]}`}>{u.role}</span></td>
                   <td className="py-2.5 px-3 text-slate-400">{u.company || "—"}</td>
                   <td className="py-2.5 px-3 font-mono text-slate-400">{u.licenseNumber || "—"}</td>
-                  <td className="py-2.5 px-3">
-                    {u.licenseDocument ? (
-                      <button onClick={() => setSelectedProof(u.licenseDocument)} className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-semibold underline transition">
-                        View Proof
-                      </button>
-                    ) : "—"}
-                  </td>
                   <td className="py-2.5 px-3 font-mono text-[10px] text-slate-500">{fmtShortHash(u.walletAddress || "")}</td>
                   <td className="py-2.5 px-3">
-                    {u.verified ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-                        <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                        Verified
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-400">
-                        <span className="flex h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        Pending Approval
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3 text-right">
-                    {!u.verified && u.role !== "admin" && (
-                      <button onClick={() => handleApproveUser(u.id)}
-                        className="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-[10px] font-bold text-white transition">
-                        Verify Account
-                      </button>
-                    )}
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                      <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      Verified
+                    </span>
                   </td>
                 </tr>
               ))}
