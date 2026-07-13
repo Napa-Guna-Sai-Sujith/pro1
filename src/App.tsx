@@ -464,10 +464,6 @@ function LoginPage() {
         setLocalError(`${licLabel} is required`);
         return;
       }
-      if (!regLicenseDoc) {
-        setLocalError("Proof document is required");
-        return;
-      }
     }
     const res = await register({
       name: regName,
@@ -676,9 +672,9 @@ function LoginPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-400 mb-1">
-                      {regRole === "manufacturer" && "Upload Manufacturing License (PDF/Image) *"}
-                      {regRole === "distributor" && "Upload Wholesale License (PDF/Image) *"}
-                      {regRole === "pharmacy" && "Upload Pharmacy License (PDF/Image) *"}
+                      {regRole === "manufacturer" && "Upload Manufacturing License (PDF/Image) (Optional)"}
+                      {regRole === "distributor" && "Upload Wholesale License (PDF/Image) (Optional)"}
+                      {regRole === "pharmacy" && "Upload Pharmacy License (PDF/Image) (Optional)"}
                     </label>
                     <input type="file" accept="image/*,application/pdf" onChange={e => {
                       const file = e.target.files?.[0];
