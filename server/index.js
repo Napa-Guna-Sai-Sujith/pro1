@@ -80,9 +80,32 @@ function hoursAgo(n) {
 // ── Auth Routes ────────────────────────────────────
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { name, email, password, role, walletAddress, company, location } = req.body;
+    const { name, email, password, role, walletAddress, company, location, licenseNumber, licenseDocument } = req.body;
     if (!name || !email || !role) return res.status(400).json({ error: "Name, email and role are required" });
+    
+    // Email Validation: Must be a gmail address
     const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail.endsWith("@gmail.com")) {
+      return res.status(400).json({ error: "Email must be in the format xxxxx@gmail.com" });
+    }
+
+    // Password Validation: Caps, small, numericals, special chars
+    if (password) {
+      const pwdRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+      if (!pwdRegex.test(password)) {
+        return res.status(400).json({ 
+          error: "Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters." 
+        });
+      }
+    }
+
+    // License Validation: Required for non-consumer roles
+    if (role !== "consumer" && role !== "admin") {
+      if (!licenseNumber || !licenseNumber.trim()) {
+        return res.status(400).json({ error: "License number is mandatory for Manufacturers, Distributors, and Pharmacies." });
+      }
+    }
+
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) return res.status(400).json({ error: "Email already registered" });
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
@@ -96,10 +119,26 @@ app.post("/api/auth/register", async (req, res) => {
       walletAddress: walletAddress || null,
       company: company || null,
       location: location || null,
-      verified: false,
+      licenseNumber: licenseNumber || null,
+      licenseDocument: licenseDocument || null,
+      verified: (role === "consumer" || role === "admin"),
+      createdAt: new Date().toISOString(),
     });
     const token = jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
     res.status(201).json({ user, token });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/verify-user", authMiddleware, roleMiddleware("admin"), async (req, res) => {
+  try {
+    const { userId, verified } = req.body;
+    const userToVerify = await User.findOne({ id: userId });
+    if (!userToVerify) return res.status(404).json({ error: "User not found" });
+    userToVerify.verified = !!verified;
+    await userToVerify.save();
+    res.json({ success: true, user: userToVerify });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -122,6 +161,7 @@ app.post("/api/auth/login", async (req, res) => {
           walletAddress,
           verified: true,
           metaMaskConnected: true,
+          createdAt: new Date().toISOString(),
         });
       }
     } else if (email) {
@@ -137,6 +177,23 @@ app.post("/api/auth/login", async (req, res) => {
     } else {
       return res.status(400).json({ error: "Email or wallet address required" });
     }
+
+    // Verify Account Verification & Expiration check
+    if (!user.verified && user.role !== "admin") {
+      const createdTime = user.createdAt ? new Date(user.createdAt).getTime() : Date.now();
+      const hoursDiff = (Date.now() - createdTime) / (1000 * 60 * 60);
+      if (hoursDiff >= 24) {
+        // Automatically delete the expired account
+        await User.deleteMany({ id: user.id });
+        return res.status(403).json({ 
+          error: "Verification window expired (24 hours exceeded). Your pending registration was automatically deleted. Please register again." 
+        });
+      }
+      return res.status(403).json({ 
+        error: "Your account is pending administrator approval. Access is blocked until verified." 
+      });
+    }
+
     user.lastLoginAt = new Date().toISOString();
     await user.save();
     const token = jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
@@ -165,6 +222,22 @@ app.post("/api/auth/unlink-wallet", authMiddleware, async (req, res) => {
     const user = await User.findOne({ id: req.user.id });
     if (!user) return res.status(404).json({ error: "User not found" });
     user.walletAddress = null;
+    await user.save();
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/update-profile", authMiddleware, async (req, res) => {
+  try {
+    const { name, company, location, licenseNumber } = req.body;
+    const user = await User.findOne({ id: req.user.id });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (name !== undefined) user.name = name;
+    if (company !== undefined) user.company = company;
+    if (location !== undefined) user.location = location;
+    if (licenseNumber !== undefined) user.licenseNumber = licenseNumber;
     await user.save();
     res.json({ success: true, user });
   } catch (err) {

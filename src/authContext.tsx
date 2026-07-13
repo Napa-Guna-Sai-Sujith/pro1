@@ -10,7 +10,7 @@ interface AuthContextType {
   error: string | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginWithMetaMask: () => Promise<{ success: boolean; error?: string }>;
-  register: (data: { name: string; email: string; password?: string; role: string; company?: string; walletAddress?: string; location?: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { name: string; email: string; password?: string; role: string; company?: string; walletAddress?: string; location?: string; licenseNumber?: string; licenseDocument?: string }) => Promise<{ success: boolean; error?: string }>;
   switchRole: (userId: string) => void;
   logout: () => void;
   getUsersByRole: (role: UserRole) => User[];
@@ -19,6 +19,7 @@ interface AuthContextType {
   refreshUsers: () => Promise<void>;
   linkWallet: (walletAddress: string) => Promise<{ success: boolean; error?: string }>;
   unlinkWallet: () => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: { name: string; company?: string; location?: string; licenseNumber?: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -170,6 +171,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token]);
 
+  const updateProfile = useCallback(async (data: { name: string; company?: string; location?: string; licenseNumber?: string }) => {
+    if (!token) return { success: false, error: "Not authenticated" };
+    try {
+      const response = await authApi.updateProfile(data, token);
+      if (response.success) {
+        setUser(response.user as User);
+        localStorage.setItem("chm_user", JSON.stringify(response.user));
+        authApi.getUsers(token).then(users => setAllUsers(users as User[])).catch(() => {});
+        return { success: true };
+      }
+      return { success: false, error: "Failed to update profile" };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Failed to update profile" };
+    }
+  }, [token]);
+
   const logout = useCallback(() => {
     localStorage.removeItem("chm_jwt");
     localStorage.removeItem("chm_user");
@@ -213,7 +230,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       storageInfo,
       refreshUsers,
       linkWallet,
-      unlinkWallet
+      unlinkWallet,
+      updateProfile
     }}>
       {children}
     </AuthContext.Provider>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { AuthProvider, useAuth } from "./authContext";
+import { authApi } from "./api";
 import { jsonStore } from "./jsonStorage";
 import {
   Pill, ShieldCheck, ShieldAlert, Search, Plus, ArrowRight,
@@ -407,7 +408,7 @@ function LoginPage() {
   const [password, setPassword] = useState("password123");
   const [localError, setLocalError] = useState("");
   const [showQuickSelect, setShowQuickSelect] = useState(true);
-  
+
   // Registration state
   const [isRegistering, setIsRegistering] = useState(false);
   const [regName, setRegName] = useState("");
@@ -416,32 +417,86 @@ function LoginPage() {
   const [regRole, setRegRole] = useState("consumer");
   const [regCompany, setRegCompany] = useState("");
   const [regLocation, setRegLocation] = useState("");
+  const [regLicenseNumber, setRegLicenseNumber] = useState("");
+  const [regLicenseDoc, setRegLicenseDoc] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [showRegPwd, setShowRegPwd] = useState(false);
-
+  const [successMessage, setSuccessMessage] = useState("");
+ 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError("");
+    setSuccessMessage("");
     const res = await login(email, password);
     if (!res.success) setLocalError(res.error || "Login failed");
   };
-
+ 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError("");
+    setSuccessMessage("");
     if (!regName || !regEmail || !regPassword || !regRole) {
       setLocalError("Name, email, password and role are required");
       return;
+    }
+    if (!regEmail.toLowerCase().trim().endsWith("@gmail.com")) {
+      setLocalError("Email must be in the format xxxxx@gmail.com");
+      return;
+    }
+    const pwdRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!pwdRegex.test(regPassword)) {
+      setLocalError("Password must contain uppercase, lowercase, numbers, and special characters (min 8 chars).");
+      return;
+    }
+    if (regRole !== "consumer") {
+      if (!regCompany) {
+        const compLabel = regRole === "manufacturer" ? "Company Name" : regRole === "distributor" ? "Distributor Company Name" : "Pharmacy Name";
+        setLocalError(`${compLabel} is required`);
+        return;
+      }
+      if (!regLocation) {
+        const locLabel = regRole === "manufacturer" ? "Factory Address" : regRole === "distributor" ? "Warehouse Address" : "Store Address";
+        setLocalError(`${locLabel} is required`);
+        return;
+      }
+      if (!regLicenseNumber) {
+        const licLabel = regRole === "manufacturer" ? "Manufacturing License Number" : regRole === "distributor" ? "Wholesale Drug License Number" : "Pharmacy License Number";
+        setLocalError(`${licLabel} is required`);
+        return;
+      }
+      if (!regLicenseDoc) {
+        setLocalError("Proof document is required");
+        return;
+      }
     }
     const res = await register({
       name: regName,
       email: regEmail,
       password: regPassword,
       role: regRole,
-      company: regCompany || undefined,
-      location: regLocation || undefined
+      company: regRole !== "consumer" ? regCompany : undefined,
+      location: regRole !== "consumer" ? regLocation : undefined,
+      licenseNumber: regRole !== "consumer" ? regLicenseNumber : undefined,
+      licenseDocument: regRole !== "consumer" ? regLicenseDoc : undefined,
     });
-    if (!res.success) setLocalError(res.error || "Registration failed");
+    if (!res.success) {
+      setLocalError(res.error || "Registration failed");
+    } else {
+      // Clear fields upon success
+      setRegName("");
+      setRegEmail("");
+      setRegPassword("");
+      setRegCompany("");
+      setRegLocation("");
+      setRegLicenseNumber("");
+      setRegLicenseDoc("");
+      setIsRegistering(false);
+      setSuccessMessage(
+        regRole === "consumer" 
+          ? "✅ Account created successfully! Please sign in." 
+          : "⏳ Registration submitted! Awaiting Admin verification."
+      );
+    }
   };
 
   const QUICK_LOGINS = [
@@ -451,7 +506,6 @@ function LoginPage() {
     { email: "klaus@example.com", role: "consumer", label: "Consumer", name: "Klaus Mueller" },
   ];
 
-  const storage = jsonStore.getStorageInfo();
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -527,6 +581,7 @@ function LoginPage() {
                   </button>
                 </div>
               </div>
+              {successMessage && <div className="text-xs text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2">{successMessage}</div>}
               {(localError || error) && <div className="text-xs text-rose-400 bg-rose-500/10 rounded-lg px-3 py-2">{localError || error}</div>}
               <button type="submit" disabled={isConnecting}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-400 to-emerald-400 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-50">
@@ -587,18 +642,60 @@ function LoginPage() {
                   <option value="pharmacy">Pharmacy</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Company / Organization (Optional)</label>
-                <input type="text" value={regCompany} onChange={e => setRegCompany(e.target.value)}
-                  className="w-full rounded-lg border border-slate-800 bg-black/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-cyan-500/50"
-                  placeholder="Company name" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Location Address (Optional)</label>
-                <input type="text" value={regLocation} onChange={e => setRegLocation(e.target.value)}
-                  className="w-full rounded-lg border border-slate-800 bg-black/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-cyan-500/50"
-                  placeholder="City, Country" />
-              </div>
+              {regRole !== "consumer" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      {regRole === "manufacturer" && "Company Name *"}
+                      {regRole === "distributor" && "Distributor Company Name *"}
+                      {regRole === "pharmacy" && "Pharmacy Name *"}
+                    </label>
+                    <input type="text" value={regCompany} onChange={e => setRegCompany(e.target.value)}
+                      className="w-full rounded-lg border border-slate-800 bg-black/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-cyan-500/50"
+                      placeholder={regRole === "manufacturer" ? "Novara Pharma GmbH" : regRole === "distributor" ? "MediLogistics EU" : "Apotheke am Markt"} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      {regRole === "manufacturer" && "Factory Address *"}
+                      {regRole === "distributor" && "Warehouse Address *"}
+                      {regRole === "pharmacy" && "Store Address *"}
+                    </label>
+                    <input type="text" value={regLocation} onChange={e => setRegLocation(e.target.value)}
+                      className="w-full rounded-lg border border-slate-800 bg-black/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-cyan-500/50"
+                      placeholder="Street name, City, Country" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      {regRole === "manufacturer" && "Manufacturing License Number *"}
+                      {regRole === "distributor" && "Wholesale Drug License Number *"}
+                      {regRole === "pharmacy" && "Pharmacy License Number *"}
+                    </label>
+                    <input type="text" value={regLicenseNumber} onChange={e => setRegLicenseNumber(e.target.value)}
+                      className="w-full rounded-lg border border-slate-800 bg-black/40 px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-cyan-500/50"
+                      placeholder="e.g. LIC-9048-28A" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      {regRole === "manufacturer" && "Upload Manufacturing License (PDF/Image) *"}
+                      {regRole === "distributor" && "Upload Wholesale License (PDF/Image) *"}
+                      {regRole === "pharmacy" && "Upload Pharmacy License (PDF/Image) *"}
+                    </label>
+                    <input type="file" accept="image/*,application/pdf" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onloadend = () => setRegLicenseDoc(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                      className="w-full text-xs text-slate-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700 cursor-pointer" />
+                    {regLicenseDoc && (
+                      <div className="mt-1 text-[10px] text-emerald-400 flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" /> File uploaded successfully
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
               {(localError || error) && <div className="text-xs text-rose-400 bg-rose-500/10 rounded-lg px-3 py-2">{localError || error}</div>}
               <button type="submit" disabled={isConnecting}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-400 to-emerald-400 py-2 text-xs font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-50">
@@ -1812,15 +1909,29 @@ function ConsumerDashboard() {
 
 // ── Admin Dashboard ────────────────────────────────
 function AdminDashboard() {
-  const { allUsers } = useAuth();
+  const { allUsers, token, refreshUsers } = useAuth();
   const [drugs, setDrugs] = useState<any[]>([]);
   const [calls, setCalls] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
   const [alert, setAlert] = useState<{ msg: string; type: string } | null>(null);
+  const [selectedProof, setSelectedProof] = useState<string | null>(null);
 
   const showAlert = (msg: string, type: string) => {
     setAlert({ msg, type });
     setTimeout(() => setAlert(null), 4000);
+  };
+
+  const handleApproveUser = async (userId: string) => {
+    if (!token) return;
+    try {
+      const res = await authApi.verifyUser(userId, true, token);
+      if (res.success) {
+        showAlert("✅ User verified and approved successfully!", "success");
+        refreshUsers();
+      }
+    } catch (err: any) {
+      showAlert(`❌ Verification failed: ${err.message}`, "error");
+    }
   };
 
   const refresh = useCallback(() => {
@@ -1918,14 +2029,38 @@ function AdminDashboard() {
         </div>
       </div>
 
+      {selectedProof && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl relative">
+            <button onClick={() => setSelectedProof(null)} className="absolute top-4 right-4 rounded-lg p-1.5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+            <h3 className="text-sm font-bold text-white mb-4">License Document Proof</h3>
+            <div className="rounded-xl border border-slate-800 bg-black/40 overflow-hidden max-h-[70vh] flex items-center justify-center p-2">
+              {selectedProof.startsWith("data:application/pdf") ? (
+                <embed src={selectedProof} type="application/pdf" className="w-full h-[500px]" />
+              ) : (
+                <img src={selectedProof} alt="License Proof" className="max-w-full max-h-[500px] object-contain rounded-lg" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/10 p-5 backdrop-blur-md">
         <h3 className="text-sm font-bold text-white mb-3">Network Participants</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="text-[10px] uppercase text-slate-500 border-b border-slate-800">
               <tr>
-                <th className="py-2 px-3">Name</th><th className="py-2 px-3">Role</th><th className="py-2 px-3">Company</th>
-                <th className="py-2 px-3">Wallet</th><th className="py-2 px-3">Status</th>
+                <th className="py-2 px-3">Name</th>
+                <th className="py-2 px-3">Role</th>
+                <th className="py-2 px-3">Company</th>
+                <th className="py-2 px-3">License Number</th>
+                <th className="py-2 px-3">Proof Doc</th>
+                <th className="py-2 px-3">Wallet</th>
+                <th className="py-2 px-3">Status</th>
+                <th className="py-2 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
@@ -1934,8 +2069,36 @@ function AdminDashboard() {
                   <td className="py-2.5 px-3 text-white font-semibold">{u.name}</td>
                   <td className="py-2.5 px-3"><span className={`rounded-full px-2 py-0.5 text-[9px] font-mono ${ROLE_COLORS[u.role]}`}>{u.role}</span></td>
                   <td className="py-2.5 px-3 text-slate-400">{u.company || "—"}</td>
+                  <td className="py-2.5 px-3 font-mono text-slate-400">{u.licenseNumber || "—"}</td>
+                  <td className="py-2.5 px-3">
+                    {u.licenseDocument ? (
+                      <button onClick={() => setSelectedProof(u.licenseDocument)} className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-semibold underline transition">
+                        View Proof
+                      </button>
+                    ) : "—"}
+                  </td>
                   <td className="py-2.5 px-3 font-mono text-[10px] text-slate-500">{fmtShortHash(u.walletAddress || "")}</td>
-                  <td className="py-2.5 px-3"><span className="flex items-center gap-1 text-[10px] text-emerald-400"><span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />Verified</span></td>
+                  <td className="py-2.5 px-3">
+                    {u.verified ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                        <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-400">
+                        <span className="flex h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        Pending Approval
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-right">
+                    {!u.verified && u.role !== "admin" && (
+                      <button onClick={() => handleApproveUser(u.id)}
+                        className="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-[10px] font-bold text-white transition">
+                        Verify Account
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1952,10 +2115,19 @@ function AppShell() {
   const [activeView, setActiveView] = useState<string>("manufacturer");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
+  const [showAccessGrantedModal, setShowAccessGrantedModal] = useState(false);
 
   useEffect(() => {
     if (user) {
       setActiveView(user.role);
+      
+      // Check if user was verified and has not been notified yet
+      if (user.verified && user.role !== "admin" && user.role !== "consumer") {
+        const hasNotified = localStorage.getItem(`chm_notified_access_${user.id}`);
+        if (hasNotified !== "true") {
+          setShowAccessGrantedModal(true);
+        }
+      }
     }
   }, [user]);
 
@@ -1964,7 +2136,6 @@ function AppShell() {
     const unsub = onReceipt((data) => setActiveReceipt(data));
     return unsub;
   }, []);
-
 
   if (!user) return <LoginPage />;
 
@@ -1988,6 +2159,34 @@ function AppShell() {
           onClose={() => setActiveReceipt(null)}
         />
       )}
+
+      {/* Access Granted Welcome Modal */}
+      {showAccessGrantedModal && (
+        <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-500/30 bg-slate-950 p-6 shadow-2xl text-center space-y-5 relative">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+              <CheckCircle className="h-10 w-10" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-white">🎉 Verification Successful!</h3>
+              <p className="text-xs text-emerald-300 font-semibold uppercase tracking-wider">Account Active</p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                You got access now! You can use the account. Your license registration has been verified and approved by the system administrator.
+              </p>
+            </div>
+            <div className="pt-2">
+              <button onClick={() => {
+                localStorage.setItem(`chm_notified_access_${user.id}`, "true");
+                setShowAccessGrantedModal(false);
+              }}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-bold text-xs transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                Get Started
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
         <div className="absolute -top-40 left-1/3 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-cyan-600/10 blur-[130px]" />
         <div className="absolute bottom-10 right-10 h-[400px] w-[500px] rounded-full bg-emerald-600/5 blur-[120px]" />
@@ -2041,12 +2240,65 @@ function AppShell() {
       </header>
 
       <main className="relative z-10 flex-1 mx-auto max-w-[1440px] w-full px-4 sm:px-6 py-6">
-        {activeView === "manufacturer" && <ManufacturerDashboard />}
-        {activeView === "distributor" && <DistributorDashboard />}
-        {activeView === "pharmacy" && <PharmacyDashboard />}
-        {activeView === "consumer" && <ConsumerDashboard />}
-        {activeView === "admin" && <AdminDashboard />}
-        {activeView === "profile" && <ProfileDashboard />}
+        {(!user.verified && activeView !== "profile") ? (
+          <div className="max-w-2xl mx-auto my-8 rounded-2xl border border-amber-500/20 bg-slate-900/60 p-8 text-center backdrop-blur-xl space-y-6">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10 text-amber-400 mb-2">
+              <AlertTriangle className="h-8 w-8 animate-pulse" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Verification Status: Pending Approval</h2>
+              <p className="text-xs text-slate-400 mt-2">
+                Your account is currently waiting for system administrator verification of your license.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-black/40 p-4 text-left space-y-3">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold border-b border-slate-800 pb-1.5">Submitted Details</div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 block">Registered Name</span>
+                  <span className="text-white font-semibold">{user.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">System Role</span>
+                  <span className="text-white font-semibold capitalize">{user.role}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Company Name</span>
+                  <span className="text-white font-semibold">{user.company || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Location Address</span>
+                  <span className="text-white font-semibold">{user.location || "—"}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-slate-500 block">License Number</span>
+                  <span className="text-white font-semibold font-mono">{user.licenseNumber || "—"}</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed max-w-lg mx-auto">
+              Please contact your administrator at <span className="text-indigo-400">admin@chainmed.io</span> if you have any questions or require urgent verification.
+            </p>
+
+            <div className="pt-2">
+              <button onClick={() => setActiveView("profile")}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-4 py-2.5 transition-colors">
+                <User className="h-4 w-4" /> Go to My Profile
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeView === "manufacturer" && <ManufacturerDashboard />}
+            {activeView === "distributor" && <DistributorDashboard />}
+            {activeView === "pharmacy" && <PharmacyDashboard />}
+            {activeView === "consumer" && <ConsumerDashboard />}
+            {activeView === "admin" && <AdminDashboard />}
+            {activeView === "profile" && <ProfileDashboard />}
+          </>
+        )}
       </main>
 
       <footer className="relative z-10 border-t border-slate-900 bg-slate-950/60 mt-auto">
@@ -2068,8 +2320,23 @@ function AppShell() {
 
 // ── Profile Dashboard ───────────────────────────────
 function ProfileDashboard() {
-  const { user, linkWallet, unlinkWallet } = useAuth();
+  const { user, linkWallet, unlinkWallet, updateProfile } = useAuth();
   const [statusMsg, setStatusMsg] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(user?.name || "");
+  const [editCompany, setEditCompany] = useState(user?.company || "");
+  const [editLocation, setEditLocation] = useState(user?.location || "");
+  const [editLicenseNumber, setEditLicenseNumber] = useState(user?.licenseNumber || "");
+
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name);
+      setEditCompany(user.company || "");
+      setEditLocation(user.location || "");
+      setEditLicenseNumber(user.licenseNumber || "");
+    }
+  }, [user]);
+
   if (!user) return null;
 
   const handleLinkMetaMask = async () => {
@@ -2114,11 +2381,50 @@ function ProfileDashboard() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    setStatusMsg("");
+    if (!editName.trim()) {
+      setStatusMsg("❌ Full Name is required");
+      return;
+    }
+    const res = await updateProfile({
+      name: editName,
+      company: user.role !== "consumer" ? editCompany : undefined,
+      location: user.role !== "consumer" ? editLocation : undefined,
+      licenseNumber: user.role !== "consumer" ? editLicenseNumber : undefined,
+    });
+    if (res.success) {
+      setStatusMsg("✅ Profile updated successfully!");
+      setIsEditing(false);
+    } else {
+      setStatusMsg(`❌ Failed to update: ${res.error}`);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-white">Your Blockchain Profile</h2>
-        <p className="text-sm text-slate-400">Manage your credentials, cryptographic keys, and system metadata</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white">Your Blockchain Profile</h2>
+          <p className="text-sm text-slate-400">Manage your credentials, cryptographic keys, and system metadata</p>
+        </div>
+        {!isEditing ? (
+          <button onClick={() => setIsEditing(true)}
+            className="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs font-semibold text-white transition">
+            Edit Profile
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button onClick={() => setIsEditing(false)}
+              className="rounded-lg bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 transition">
+              Cancel
+            </button>
+            <button onClick={handleSaveProfile}
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs font-semibold text-white transition">
+              Save Changes
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -2132,18 +2438,84 @@ function ProfileDashboard() {
               {React.createElement(ROLE_ICONS[user.role] || User, { className: "h-6 w-6 text-slate-950" })}
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">{user.name}</h3>
-              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-wider ${ROLE_COLORS[user.role] || "bg-slate-500/20 text-slate-300"}`}>
+              {isEditing ? (
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                  className="rounded-lg border border-slate-800 bg-black/40 px-2.5 py-1 text-xs text-white placeholder:text-slate-600 outline-none focus:border-cyan-500/50 font-semibold"
+                  placeholder="Full Name" />
+              ) : (
+                <h3 className="text-base font-bold text-white">{user.name}</h3>
+              )}
+              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-wider mt-1 ${ROLE_COLORS[user.role] || "bg-slate-500/20 text-slate-300"}`}>
                 {ROLE_LABELS[user.role] || user.role}
               </span>
             </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-4 space-y-2 text-xs">
-            <div className="flex justify-between py-1"><span className="text-slate-500 font-medium">Email Address</span><span className="text-white font-semibold">{user.email}</span></div>
-            <div className="flex justify-between py-1"><span className="text-slate-500 font-medium">Company / Organization</span><span className="text-white font-semibold">{user.company || "Independent"}</span></div>
-            <div className="flex justify-between py-1"><span className="text-slate-500 font-medium">Location Area</span><span className="text-white font-semibold">{user.location || "Not specified"}</span></div>
-            <div className="flex justify-between py-1"><span className="text-slate-500 font-medium">Verification Status</span><span className="flex items-center gap-1 text-emerald-400"><span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Verified On-Chain</span></div>
+          <div className="border-t border-slate-800 pt-4 space-y-3 text-xs">
+            <div className="flex justify-between items-center py-1">
+              <span className="text-slate-500 font-medium">Email Address</span>
+              <span className="text-slate-400 font-semibold">{user.email} (Non-editable)</span>
+            </div>
+            
+            <div className="flex justify-between items-center py-1">
+              <span className="text-slate-500 font-medium">
+                {user.role === "manufacturer" && "Company Name"}
+                {user.role === "distributor" && "Distributor Company Name"}
+                {user.role === "pharmacy" && "Pharmacy Name"}
+                {user.role === "consumer" && "Company / Organization"}
+              </span>
+              {isEditing && user.role !== "consumer" ? (
+                <input type="text" value={editCompany} onChange={e => setEditCompany(e.target.value)}
+                  className="rounded-lg border border-slate-800 bg-black/40 px-2.5 py-1 text-xs text-white placeholder:text-slate-650 outline-none focus:border-cyan-500/50 text-right w-1/2"
+                  placeholder="Company name" />
+              ) : (
+                <span className="text-white font-semibold">{user.company || "Independent"}</span>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-slate-500 font-medium">
+                {user.role === "manufacturer" && "Factory Address"}
+                {user.role === "distributor" && "Warehouse Address"}
+                {user.role === "pharmacy" && "Store Address"}
+                {user.role === "consumer" && "Location Area"}
+              </span>
+              {isEditing && user.role !== "consumer" ? (
+                <input type="text" value={editLocation} onChange={e => setEditLocation(e.target.value)}
+                  className="rounded-lg border border-slate-800 bg-black/40 px-2.5 py-1 text-xs text-white placeholder:text-slate-650 outline-none focus:border-cyan-500/50 text-right w-1/2"
+                  placeholder="Location address" />
+              ) : (
+                <span className="text-white font-semibold">{user.location || "Not specified"}</span>
+              )}
+            </div>
+
+            {user.role !== "consumer" && (
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 font-medium">License Number</span>
+                {isEditing ? (
+                  <input type="text" value={editLicenseNumber} onChange={e => setEditLicenseNumber(e.target.value)}
+                    className="rounded-lg border border-slate-800 bg-black/40 px-2.5 py-1 text-xs text-white placeholder:text-slate-650 outline-none focus:border-cyan-500/50 text-right w-1/2"
+                    placeholder="License number" />
+                ) : (
+                  <span className="text-white font-semibold font-mono">{user.licenseNumber || "—"}</span>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-slate-500 font-medium">Verification Status</span>
+              {user.verified ? (
+                <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                  <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Verified On-Chain
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-amber-400 font-semibold">
+                  <span className="flex h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Pending Admin Verification
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

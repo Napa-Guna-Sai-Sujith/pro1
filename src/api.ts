@@ -38,7 +38,17 @@ export const authApi = {
   loginWithWallet: (walletAddress: string) =>
     apiCall<{ user: any; token: string }>("/auth/login", { method: "POST", body: { walletAddress } }),
 
-  register: (data: { name: string; email: string; password: string; role: string; company?: string; walletAddress?: string }) =>
+  register: (data: {
+    name: string;
+    email: string;
+    password?: string;
+    role: string;
+    company?: string;
+    location?: string;
+    walletAddress?: string;
+    licenseNumber?: string;
+    licenseDocument?: string;
+  }) =>
     apiCall<{ user: any; token: string }>("/auth/register", { method: "POST", body: data }),
 
   getMe: (token: string) =>
@@ -52,6 +62,12 @@ export const authApi = {
 
   unlinkWallet: (token: string) =>
     apiCall<{ success: boolean; user: any }>("/auth/unlink-wallet", { method: "POST", token }),
+
+  verifyUser: (userId: string, verified: boolean, token: string) =>
+    apiCall<{ success: boolean; user: any }>("/auth/verify-user", { method: "POST", body: { userId, verified }, token }),
+
+  updateProfile: (data: { name: string; company?: string; location?: string; licenseNumber?: string }, token: string) =>
+    apiCall<{ success: boolean; user: any }>("/auth/update-profile", { method: "POST", body: data, token }),
 };
 
 // ── Drug API ───────────────────────────────────────

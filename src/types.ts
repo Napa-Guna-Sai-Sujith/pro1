@@ -9,6 +9,8 @@ export interface User {
   company?: string;
   location?: string;
   verified: boolean;
+  licenseNumber?: string;
+  licenseDocument?: string;
 }
 
 export interface DrugRecord {
