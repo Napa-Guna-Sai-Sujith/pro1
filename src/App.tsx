@@ -2278,7 +2278,7 @@ function AdminDashboard() {
 // ── App Shell ──────────────────────────────────────
 function AppShell() {
   const { user, logout, storageInfo } = useAuth();
-  const [activeView, setActiveView] = useState<string>("manufacturer");
+  const [activeView, setActiveView] = useState<string>(user?.role || "manufacturer");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
   const [showAccessGrantedModal, setShowAccessGrantedModal] = useState(false);
