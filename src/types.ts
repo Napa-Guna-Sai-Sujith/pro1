@@ -39,6 +39,7 @@ export interface DrugRecord {
   authenticityScore: number;
   lastVerifiedAt: string;
   temperatureLogs: TemperatureLog[];
+  alerts?: any[];
 }
 
 export type DrugStatus = "manufactured" | "in_transit_distributor" | "at_distributor" | "in_transit_pharmacy" | "at_pharmacy" | "dispensed" | "recalled" | "flagged_fake";

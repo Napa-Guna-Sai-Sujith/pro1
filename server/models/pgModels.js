@@ -224,6 +224,6 @@ class PgModel {
 
 module.exports = {
   User: new PgModel("users", [], "id"),
-  Drug: new PgModel("drugs", ["supplyChain", "temperatureLogs"], "id"),
+  Drug: new PgModel("drugs", ["supplyChain", "temperatureLogs", "alerts"], "id"),
   SmartContractCall: new PgModel("smart_contract_calls", ["params"], "id")
 };

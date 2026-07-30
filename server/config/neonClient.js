@@ -46,6 +46,7 @@ async function initDb() {
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS license_number VARCHAR(255);`);
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS license_document TEXT;`);
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN DEFAULT FALSE;`);
+    await query(`ALTER TABLE drugs ADD COLUMN IF NOT EXISTS alerts JSONB DEFAULT '[]'::jsonb;`);
 
 
     await query(`
@@ -91,6 +92,44 @@ async function initDb() {
         timestamp VARCHAR(255)
       );
     `);
+    
+    await query(`
+      CREATE TABLE IF NOT EXISTS official_license_registry (
+        license_number VARCHAR(255) PRIMARY KEY,
+        company_name VARCHAR(255) NOT NULL,
+        registered_role VARCHAR(100) NOT NULL,
+        authenticated BOOLEAN DEFAULT TRUE
+      );
+    `);
+
+    // Seed dummy entries into the official registry mirroring Indian Pharmaceutical Council / Aadhaar systems (total 12 entries)
+    const checkRegistry = await query("SELECT COUNT(*) FROM official_license_registry");
+    if (parseInt(checkRegistry.rows[0].count) === 0) {
+      const dummyRegistry = [
+        // Manufacturers
+        ['LIC-MFR-IND-9091', 'Novara Pharma GmbH', 'manufacturer'],
+        ['LIC-MFR-IND-9092', 'Helix Biosciences', 'manufacturer'],
+        ['LIC-MFR-IND-9093', 'Astra Biotech Labs', 'manufacturer'],
+        ['LIC-MFR-IND-9094', 'Mediscience Corp', 'manufacturer'],
+        // Distributors
+        ['LIC-DST-IND-8081', 'MediLogistics EU', 'distributor'],
+        ['LIC-DST-IND-8082', 'PharmaRoute SA', 'distributor'],
+        ['LIC-DST-IND-8083', 'Global Rx Dist', 'distributor'],
+        ['LIC-DST-IND-8084', 'CareExpress Logistics', 'distributor'],
+        // Pharmacies
+        ['LIC-PHM-IND-7071', 'Apotheke am Markt', 'pharmacy'],
+        ['LIC-PHM-IND-7072', 'Pharmacie du Centre', 'pharmacy'],
+        ['LIC-PHM-IND-7073', 'SuperMed Discount Store', 'pharmacy'],
+        ['LIC-PHM-IND-7074', 'Wellness Pharmacy Hub', 'pharmacy']
+      ];
+      for (const entry of dummyRegistry) {
+        await query(
+          "INSERT INTO official_license_registry (license_number, company_name, registered_role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+          entry
+        );
+      }
+      console.log("✅ Seeded 12 official registry entries mirroring Indian Pharmaceutical Council system.");
+    }
     
     console.log("✅ Neon DB / PostgreSQL schemas successfully initialized.");
   } catch (err) {

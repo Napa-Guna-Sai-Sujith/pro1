@@ -22,7 +22,7 @@ function hoursAgo(n: number): string {
 // ── Initial seed data ─────────────────────────────
 function createSeedData() {
 
-  return {
+  const baseData = {
     drugs: [
       {
         id: "DRUG-1048210", name: "Atorvastatin 20mg", genericName: "Atorvastatin Calcium",
@@ -160,7 +160,7 @@ function createSeedData() {
       { id: "usr-pharm-002", name: "Jean Dupont", email: "jean@pharmacie-centre.fr", password: "password123", role: "pharmacy", walletAddress: "0x1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B", company: "Pharmacie du Centre", location: "Paris, France", verified: true, createdAt: daysAgo(60) },
     ],
 
-    contractCalls: [],
+    contractCalls: [] as any[],
 
     meta: {
       lastSeed: new Date().toISOString(),
@@ -169,6 +169,105 @@ function createSeedData() {
       totalUsers: 8,
     },
   };
+
+  // Generate 100 consumers dynamically to connect to multiple pharmacies
+  const generatedConsumers = [];
+  for (let i = 2; i <= 101; i++) {
+    const pad = i.toString().padStart(3, "0");
+    generatedConsumers.push({
+      id: `usr-consumer-${pad}`,
+      name: `Patient ${i}`,
+      email: `patient${pad}@gmail.com`,
+      password: "password123",
+      role: "consumer",
+      walletAddress: `0xAb5801a7D398351b8bE1${i.toString(16).padStart(20, '0')}`,
+      verified: true,
+      createdAt: daysAgo(90),
+    });
+  }
+
+  // Generate 100 drugs with full history (Manufacturer -> Distributor -> Pharmacy -> Consumer) to build a substantial chain (400+ blocks)
+  const generatedDrugs = [];
+  let blockCounter = 1048300;
+  for (let i = 1; i <= 100; i++) {
+    const drugId = `DRUG-GEN-${100000 + i}`;
+    const mfrId = `usr-mfr-00${(i % 2) + 1}`;
+    const distId = `usr-dist-00${(i % 2) + 1}`;
+    const pharmId = `usr-pharm-00${(i % 2) + 1}`;
+    const consumerId = `usr-consumer-${(i + 1).toString().padStart(3, "0")}`;
+    const batch = `BT-${1000 + i}`;
+    const serial = `SN-${blockCounter}-${batch}`;
+
+    const regBlock = blockCounter++;
+    const distBlock = blockCounter++;
+    const pharmBlock = blockCounter++;
+    const consumerBlock = blockCounter++;
+
+    const tx1 = `0xtx${regBlock.toString(16).padStart(60, '0')}`;
+    const tx2 = `0xtx${distBlock.toString(16).padStart(60, '0')}`;
+    const tx3 = `0xtx${pharmBlock.toString(16).padStart(60, '0')}`;
+    const tx4 = `0xtx${consumerBlock.toString(16).padStart(60, '0')}`;
+
+    generatedDrugs.push({
+      id: drugId,
+      name: i % 2 === 0 ? "Aspirin 100mg" : "Metformin 500mg",
+      genericName: i % 2 === 0 ? "Acetylsalicylic Acid" : "Metformin Hydrochloride",
+      manufacturer: mfrId === "usr-mfr-001" ? "Novara Pharma GmbH" : "Helix Biosciences",
+      manufacturerId: mfrId,
+      dosage: "30 tablets",
+      batchNumber: batch,
+      lotNumber: `LOT-GEN-${i}`,
+      mfgDate: daysAgo(120),
+      expDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      serialNumber: serial,
+      barcode: `CHM${1000+i}${100000+i}X`,
+      qrData: btoa(JSON.stringify({ did: `did:eth:chm:${drugId}`, serial, url: `https://chainmed.io/verify/${drugId}` })),
+      ipfsImageHash: `QmImage${i}`,
+      ipfsCertificateHash: `QmCert${i}`,
+      salt: `salt${i}`,
+      createdAt: daysAgo(30),
+      status: "dispensed",
+      currentHolder: consumerId,
+      currentHolderRole: "consumer",
+      authenticityScore: 95 + (i % 6),
+      lastVerifiedAt: daysAgo(1),
+      supplyChain: [
+        { txHash: tx1, blockNumber: regBlock, timestamp: daysAgo(30), from: "0x0000000000000000000000000000000000000000", fromRole: "manufacturer", to: mfrId, toRole: "manufacturer", action: "REGISTER_DRUG", location: "Factory Facility", temperature: 21.0, notes: `REGISTER: Batch ${batch} of Medication-${i} initialized.`, signature: `0xsig${tx1}`, verified: true },
+        { txHash: tx2, blockNumber: distBlock, timestamp: daysAgo(25), from: mfrId, fromRole: "manufacturer", to: distId, toRole: "distributor", action: "TRANSFER_OWNERSHIP", location: "Distribution Logistics Hub", temperature: 20.5, notes: `SHIP: Transferred to distributor ${distId}.`, signature: `0xsig${tx2}`, verified: true },
+        { txHash: tx3, blockNumber: pharmBlock, timestamp: daysAgo(20), from: distId, fromRole: "distributor", to: pharmId, toRole: "pharmacy", action: "TRANSFER_OWNERSHIP", location: "Local Pharmacy Warehouse", temperature: 21.2, notes: `DELIVER: Received at pharmacy ${pharmId}.`, signature: `0xsig${tx3}`, verified: true },
+        { txHash: tx4, blockNumber: consumerBlock, timestamp: daysAgo(15), from: pharmId, fromRole: "pharmacy", to: consumerId, toRole: "consumer", action: "TRANSFER_OWNERSHIP", location: "Retail Checkout Counter", temperature: 22.0, notes: `DISPENSE: Dispensed to consumer ${consumerId}.`, signature: `0xsig${tx4}`, verified: true },
+      ],
+      temperatureLogs: [
+        { timestamp: daysAgo(25), temperature: 20.5, location: "Distribution Hub", deviceId: "IOT-001", status: "normal" },
+        { timestamp: daysAgo(20), temperature: 21.2, location: "Local Pharmacy Shop", deviceId: "IOT-002", status: "normal" },
+      ],
+      alerts: []
+    });
+  }
+
+  // Merge generated data
+  baseData.drugs = [...baseData.drugs, ...generatedDrugs];
+  baseData.users = [...baseData.users, ...generatedConsumers];
+  baseData.meta.totalDrugs = baseData.drugs.length;
+  baseData.meta.totalUsers = baseData.users.length;
+
+  // Add the initial contract calls for contract tracking
+  baseData.drugs.forEach((d: any) => {
+    d.supplyChain.forEach((ev: any) => {
+      baseData.contractCalls.push({
+        name: ev.action === "REGISTER_DRUG" ? "registerDrug" : "transferOwnership",
+        params: { drugId: d.id, batchNumber: d.batchNumber, toUserId: ev.to },
+        result: `Mined in block ${ev.blockNumber}`,
+        gasUsed: `${(50000 + Math.floor(Math.random() * 20000)).toLocaleString()} gas`,
+        blockNumber: ev.blockNumber,
+        txHash: ev.txHash,
+        drugId: d.id,
+        timestamp: ev.timestamp
+      });
+    });
+  });
+
+  return baseData;
 }
 
 // ── Storage Manager Class ─────────────────────────
@@ -418,27 +517,49 @@ class JsonStorage {
     const drug = this.getDrugById(drugId);
     if (!drug) return null;
 
-    const blockNum = this.nextBlock();
-    const txHash = this._txHash(drugId + action + Date.now());
+    drug.alerts = drug.alerts || [];
 
-    const event: any = {
-      txHash, blockNumber: blockNum, timestamp: new Date().toISOString(),
-      from: fromUserId, fromRole,
-      to: toUserId, toRole,
-      action,
-      notes,
-      signature: this._txHash(txHash + drugId + action + "COMM_SIG"),
-      verified: true,
-    };
+    // If it's a quality report or replacement request (reverse flag), handle as direct network alert flag (no block)
+    const isAlert = ["ISSUE_REPORT", "REPLACEMENT_REQUEST"].includes(action);
 
-    drug.supplyChain.push(event);
+    if (isAlert) {
+      drug.alerts.push({
+        timestamp: new Date().toISOString(),
+        from: fromUserId,
+        fromRole,
+        to: toUserId,
+        toRole,
+        type: action,
+        notes,
+      });
 
-    this.data.contractCalls.push({
-      name: action, params: { drugId, fromRole, toRole, notes },
-      result: `Direct communication "${action}" mined at block ${blockNum}`,
-      gasUsed: `${(45000 + Math.floor(Math.random() * 15000)).toLocaleString()} gas`,
-      blockNumber: blockNum, txHash, drugId, timestamp: new Date().toISOString(),
-    });
+      if (action === "ISSUE_REPORT") {
+        drug.status = "flagged_fake";
+        drug.authenticityScore = Math.min(drug.authenticityScore, 35);
+      }
+    } else {
+      const blockNum = this.nextBlock();
+      const txHash = this._txHash(drugId + action + Date.now());
+
+      const event: any = {
+        txHash, blockNumber: blockNum, timestamp: new Date().toISOString(),
+        from: fromUserId, fromRole,
+        to: toUserId, toRole,
+        action,
+        notes,
+        signature: this._txHash(txHash + drugId + action + "COMM_SIG"),
+        verified: true,
+      };
+
+      drug.supplyChain.push(event);
+
+      this.data.contractCalls.push({
+        name: action, params: { drugId, fromRole, toRole, notes },
+        result: `Direct communication "${action}" mined at block ${blockNum}`,
+        gasUsed: `${(45000 + Math.floor(Math.random() * 15000)).toLocaleString()} gas`,
+        blockNumber: blockNum, txHash, drugId, timestamp: new Date().toISOString(),
+      });
+    }
 
     this.save();
     return drug;

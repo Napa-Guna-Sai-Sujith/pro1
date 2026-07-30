@@ -99,10 +99,19 @@ app.post("/api/auth/register", async (req, res) => {
       }
     }
 
-    // License Validation: Required for non-consumer roles
+    // License Validation: Required for non-consumer/admin roles
     if (role !== "consumer" && role !== "admin") {
       if (!licenseNumber || !licenseNumber.trim()) {
         return res.status(400).json({ error: "License number is mandatory for Manufacturers, Distributors, and Pharmacies." });
+      }
+      // Check against the official license registry database
+      const db = require("./config/neonClient");
+      const registryCheck = await db.query(
+        "SELECT * FROM official_license_registry WHERE license_number = $1 AND registered_role = $2",
+        [licenseNumber.trim(), role]
+      );
+      if (registryCheck.rows.length === 0) {
+        return res.status(400).json({ error: "This is not an authenticated license." });
       }
     }
 
@@ -730,15 +739,15 @@ app.post("/api/seed", async (req, res) => {
 
     // Seed users
     const users = await User.insertMany([
-      { id: "usr-mfr-001", name: "Dr. Sarah Chen", email: "sarah@novarapharma.com", password: await bcrypt.hash("password123", 10), role: "manufacturer", walletAddress: "0x742d35Cc6634C0532925a3b844Bc4e759f0fC84b", company: "Novara Pharma GmbH", location: "Munich, Germany", verified: true },
-      { id: "usr-dist-001", name: "Marcus Weber", email: "marcus@medilogistics.de", password: await bcrypt.hash("password123", 10), role: "distributor", walletAddress: "0x8ba1f109551bD432803012645Ac136ddd64DBA72", company: "MediLogistics EU", location: "Frankfurt, Germany", verified: true },
-      { id: "usr-pharm-001", name: "Anna Schmidt", email: "anna@apotheke-markt.de", password: await bcrypt.hash("password123", 10), role: "pharmacy", walletAddress: "0x1E6fCb1A3a7B8F9C0d2E4F6A8B0C2D4E6F8A0B2", company: "Apotheke am Markt", location: "Hamburg, Germany", verified: true },
+      { id: "usr-mfr-001", name: "Dr. Sarah Chen", email: "sarah@novarapharma.com", password: await bcrypt.hash("password123", 10), role: "manufacturer", walletAddress: "0x742d35Cc6634C0532925a3b844Bc4e759f0fC84b", company: "Novara Pharma GmbH", location: "Munich, Germany", verified: true, licenseNumber: "LIC-MFR-IND-9091" },
+      { id: "usr-dist-001", name: "Marcus Weber", email: "marcus@medilogistics.de", password: await bcrypt.hash("password123", 10), role: "distributor", walletAddress: "0x8ba1f109551bD432803012645Ac136ddd64DBA72", company: "MediLogistics EU", location: "Frankfurt, Germany", verified: true, licenseNumber: "LIC-DST-IND-8081" },
+      { id: "usr-pharm-001", name: "Anna Schmidt", email: "anna@apotheke-markt.de", password: await bcrypt.hash("password123", 10), role: "pharmacy", walletAddress: "0x1E6fCb1A3a7B8F9C0d2E4F6A8B0C2D4E6F8A0B2", company: "Apotheke am Markt", location: "Hamburg, Germany", verified: true, licenseNumber: "LIC-PHM-IND-7071" },
       { id: "usr-consumer-001", name: "Klaus Mueller", email: "klaus@example.com", password: await bcrypt.hash("password123", 10), role: "consumer", walletAddress: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", verified: true },
       { id: "usr-admin-001", name: "Guna", email: "goonadasai@gmail.com", password: await bcrypt.hash("pro@12345", 10), role: "admin", walletAddress: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F", company: "ChainMed Labs", location: "Berlin, Germany", verified: true },
       { id: "usr-admin-002", name: "Guna", email: "goondasai@gmail.com", password: await bcrypt.hash("pro@12345", 10), role: "admin", walletAddress: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F", company: "ChainMed Labs", location: "Berlin, Germany", verified: true },
-      { id: "usr-mfr-002", name: "Dr. James Mitchell", email: "james@helixbiosciences.ch", password: await bcrypt.hash("password123", 10), role: "manufacturer", walletAddress: "0x3Cb3e4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D", company: "Helix Biosciences", location: "Basel, Switzerland", verified: true },
-      { id: "usr-dist-002", name: "Sophie Laurent", email: "sophie@pharmaroute.fr", password: await bcrypt.hash("password123", 10), role: "distributor", walletAddress: "0x9A8B7C6D5E4F3A2B1C0D9E8F7A6B5C4D3E2F1A0B", company: "PharmaRoute SA", location: "Paris, France", verified: true },
-      { id: "usr-pharm-002", name: "Jean Dupont", email: "jean@pharmacie-centre.fr", password: await bcrypt.hash("password123", 10), role: "pharmacy", walletAddress: "0x1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B", company: "Pharmacie du Centre", location: "Paris, France", verified: true },
+      { id: "usr-mfr-002", name: "Dr. James Mitchell", email: "james@helixbiosciences.ch", password: await bcrypt.hash("password123", 10), role: "manufacturer", walletAddress: "0x3Cb3e4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D", company: "Helix Biosciences", location: "Basel, Switzerland", verified: true, licenseNumber: "LIC-MFR-IND-9092" },
+      { id: "usr-dist-002", name: "Sophie Laurent", email: "sophie@pharmaroute.fr", password: await bcrypt.hash("password123", 10), role: "distributor", walletAddress: "0x9A8B7C6D5E4F3A2B1C0D9E8F7A6B5C4D3E2F1A0B", company: "PharmaRoute SA", location: "Paris, France", verified: true, licenseNumber: "LIC-DST-IND-8082" },
+      { id: "usr-pharm-002", name: "Jean Dupont", email: "jean@pharmacie-centre.fr", password: await bcrypt.hash("password123", 10), role: "pharmacy", walletAddress: "0x1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B", company: "Pharmacie du Centre", location: "Paris, France", verified: true, licenseNumber: "LIC-PHM-IND-7072" },
     ]);
 
     // Seed drugs
@@ -861,8 +870,108 @@ app.post("/api/seed", async (req, res) => {
       },
     ];
 
-    await Drug.insertMany(seedDrugs);
-    res.json({ message: "✅ Database seeded successfully!", drugs: seedDrugs.length, users: users.length });
+    // Generate 100 consumers dynamically to connect to multiple pharmacies
+    const generatedConsumers = [];
+    const patientPasswordHash = await bcrypt.hash("password123", 10);
+    for (let i = 2; i <= 101; i++) {
+      const pad = i.toString().padStart(3, "0");
+      generatedConsumers.push({
+        id: `usr-consumer-${pad}`,
+        name: `Patient ${i}`,
+        email: `patient${pad}@gmail.com`,
+        password: patientPasswordHash,
+        role: "consumer",
+        walletAddress: `0xAb5801a7D398351b8bE1${i.toString(16).padStart(20, '0')}`,
+        verified: true,
+        createdAt: daysAgo(90),
+      });
+    }
+
+    // Generate 100 drugs with full history (Manufacturer -> Distributor -> Pharmacy -> Consumer) to build a substantial chain (400+ blocks)
+    const generatedDrugs = [];
+    let blockCounter = 1048300;
+    for (let i = 1; i <= 100; i++) {
+      const drugId = `DRUG-GEN-${100000 + i}`;
+      const mfrId = `usr-mfr-00${(i % 2) + 1}`;
+      const distId = `usr-dist-00${(i % 2) + 1}`;
+      const pharmId = `usr-pharm-00${(i % 2) + 1}`;
+      const consumerId = `usr-consumer-${(i + 1).toString().padStart(3, "0")}`;
+      const batch = `BT-${1000 + i}`;
+      const serial = `SN-${blockCounter}-${batch}`;
+
+      const regBlock = blockCounter++;
+      const distBlock = blockCounter++;
+      const pharmBlock = blockCounter++;
+      const consumerBlock = blockCounter++;
+
+      const tx1 = `0xtx${regBlock.toString(16).padStart(60, '0')}`;
+      const tx2 = `0xtx${distBlock.toString(16).padStart(60, '0')}`;
+      const tx3 = `0xtx${pharmBlock.toString(16).padStart(60, '0')}`;
+      const tx4 = `0xtx${consumerBlock.toString(16).padStart(60, '0')}`;
+
+      generatedDrugs.push({
+        id: drugId,
+        name: i % 2 === 0 ? "Aspirin 100mg" : "Metformin 500mg",
+        genericName: i % 2 === 0 ? "Acetylsalicylic Acid" : "Metformin Hydrochloride",
+        manufacturer: mfrId === "usr-mfr-001" ? "Novara Pharma GmbH" : "Helix Biosciences",
+        manufacturerId: mfrId,
+        dosage: "30 tablets",
+        batchNumber: batch,
+        lotNumber: `LOT-GEN-${i}`,
+        mfgDate: daysAgo(120),
+        expDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        serialNumber: serial,
+        barcode: `CHM${1000+i}${100000+i}X`,
+        qrData: Buffer.from(JSON.stringify({ did: `did:eth:chm:${drugId}`, serial, url: `https://chainmed.io/verify/${drugId}` })).toString('base64'),
+        ipfsImageHash: `QmImage${i}`,
+        ipfsCertificateHash: `QmCert${i}`,
+        salt: `salt${i}`,
+        createdAt: daysAgo(30),
+        status: "dispensed",
+        currentHolder: consumerId,
+        currentHolderRole: "consumer",
+        authenticityScore: 95 + (i % 6),
+        lastVerifiedAt: daysAgo(1),
+        supplyChain: [
+          { txHash: tx1, blockNumber: regBlock, timestamp: daysAgo(30), from: "0x0000000000000000000000000000000000000000", fromRole: "manufacturer", to: mfrId, toRole: "manufacturer", action: "REGISTER_DRUG", location: "Factory Facility", temperature: 21.0, notes: `REGISTER: Batch ${batch} of Medication-${i} initialized.`, signature: `0xsig${tx1}`, verified: true },
+          { txHash: tx2, blockNumber: distBlock, timestamp: daysAgo(25), from: mfrId, fromRole: "manufacturer", to: distId, toRole: "distributor", action: "TRANSFER_OWNERSHIP", location: "Distribution Logistics Hub", temperature: 20.5, notes: `SHIP: Transferred to distributor ${distId}.`, signature: `0xsig${tx2}`, verified: true },
+          { txHash: tx3, blockNumber: pharmBlock, timestamp: daysAgo(20), from: distId, fromRole: "distributor", to: pharmId, toRole: "pharmacy", action: "TRANSFER_OWNERSHIP", location: "Local Pharmacy Warehouse", temperature: 21.2, notes: `DELIVER: Received at pharmacy ${pharmId}.`, signature: `0xsig${tx3}`, verified: true },
+          { txHash: tx4, blockNumber: consumerBlock, timestamp: daysAgo(15), from: pharmId, fromRole: "pharmacy", to: consumerId, toRole: "consumer", action: "TRANSFER_OWNERSHIP", location: "Retail Checkout Counter", temperature: 22.0, notes: `DISPENSE: Dispensed to consumer ${consumerId}.`, signature: `0xsig${tx4}`, verified: true },
+        ],
+        temperatureLogs: [
+          { timestamp: daysAgo(25), temperature: 20.5, location: "Distribution Hub", deviceId: "IOT-001", status: "normal" },
+          { timestamp: daysAgo(20), temperature: 21.2, location: "Local Pharmacy Shop", deviceId: "IOT-002", status: "normal" },
+        ],
+        alerts: []
+      });
+    }
+
+    const finalUsers = [...users, ...generatedConsumers];
+    const finalDrugs = [...seedDrugs, ...generatedDrugs];
+
+    await User.insertMany(generatedConsumers);
+    await Drug.insertMany(generatedDrugs);
+
+    // Save Smart Contract logs
+    const calls = [];
+    finalDrugs.forEach((d) => {
+      d.supplyChain.forEach((ev) => {
+        calls.push({
+          name: ev.action === "REGISTER_DRUG" ? "registerDrug" : "transferOwnership",
+          params: { drugId: d.id, batchNumber: d.batchNumber, toUserId: ev.to },
+          result: `Mined in block ${ev.blockNumber}`,
+          gasUsed: `${(50000 + Math.floor(Math.random() * 20000)).toLocaleString()} gas`,
+          blockNumber: ev.blockNumber,
+          txHash: ev.txHash,
+          drugId: d.id,
+          timestamp: ev.timestamp
+        });
+      });
+    });
+
+    await SmartContractCall.insertMany(calls);
+
+    res.json({ message: "✅ Database seeded successfully!", drugs: finalDrugs.length, users: finalUsers.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

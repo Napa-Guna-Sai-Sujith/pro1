@@ -59,6 +59,7 @@ const drugSchema = new mongoose.Schema({
   authenticityScore: { type: Number, default: 100 },
   lastVerifiedAt: { type: String },
   temperatureLogs: [temperatureLogSchema],
+  alerts: { type: Array, default: [] },
 }, {
   timestamps: true,
   collection: "drugs",
